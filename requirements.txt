@@ -2,3 +2,4 @@ selenium
 undetected-chromedriver
 requests
 flask
+dotenv

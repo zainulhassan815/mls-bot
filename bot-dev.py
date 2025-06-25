@@ -4,16 +4,25 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.common.keys import Keys
 import undetected_chromedriver as uc
+
 import time
 import requests
 import re
 import base64
 import json
 from urllib.parse import urlparse, parse_qs, unquote
+
 from flask import Flask, request
+
 import logging
 import os
 from logging.handlers import RotatingFileHandler
+
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+PODIO_API_URL = os.environ.get("PODIO_API_URL")
 
 app = Flask(__name__)
 driver = None
@@ -146,12 +155,12 @@ def scrap():
         encoded_bytes = base64.b64encode(json_string.encode("utf-8"))
         encoded_ascii = encoded_bytes.decode("ascii")
 
-    podio_api_url = "https://workflow-automation.podio.com/catch/3m33ct5j63yj303"
+    # podio_api_url = "https://workflow-automation.podio.com/catch/3m33ct5j63yj303"
     headers = {"Content-Type": "application/json"}
 
     data = {"data": encoded_ascii}
     try:
-        response = requests.post(podio_api_url, json=data, headers=headers)
+        response = requests.post(PODIO_API_URL, json=data, headers=headers)
 
         if response.status_code == 200:
             logger.info(f"Request successful. Response content: {response.json()}")
@@ -317,16 +326,16 @@ def run_script(postlogin, postpassword, desired_buttons):
 
                 except Exception as e:
                     logger.error(f"Exception occurred: {e}", exc_info=True)
-                    podio_api_url = (
-                        "https://workflow-automation.podio.com/catch/1p58355luff33i6"
-                    )
+                    # podio_api_url = (
+                    #     "https://workflow-automation.podio.com/catch/1p58355luff33i6"
+                    # )
                     headers = {"Content-Type": "application/json"}
 
                     data = {"data": "Open in portal button not found"}
                     driver.quit()
                     try:
                         response = requests.post(
-                            podio_api_url, json=data, headers=headers
+                            PODIO_API_URL, json=data, headers=headers
                         )
 
                         if response.status_code == 200:

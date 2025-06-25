@@ -11,9 +11,42 @@ import base64
 import json
 from urllib.parse import urlparse, parse_qs, unquote
 from flask import Flask, request
+import logging
+import os
+from logging.handlers import RotatingFileHandler
 
 app = Flask(__name__)
 driver = None
+
+if not os.path.exists('logs'):
+    os.mkdir('logs')
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+info_handler = RotatingFileHandler('logs/info.log', maxBytes=1000000, backupCount=3)
+info_handler.setLevel(logging.INFO)
+info_format = logging.Formatter('[%(asctime)s] %(levelname)s in %(module)s: %(message)s')
+info_handler.setFormatter(info_format)
+
+error_handler = RotatingFileHandler('logs/error.log', maxBytes=1000000, backupCount=3)
+error_handler.setLevel(logging.ERROR)
+error_format = logging.Formatter('[%(asctime)s] %(levelname)s in %(module)s: %(message)s')
+error_handler.setFormatter(error_format)
+
+class InfoFilter(logging.Filter):
+    def filter(self, record):
+        return record.levelno == logging.INFO
+
+class ErrorFilter(logging.Filter):
+    def filter(self, record):
+        return record.levelno >= logging.ERROR
+
+info_handler.addFilter(InfoFilter())
+error_handler.addFilter(ErrorFilter())
+
+logger.addHandler(info_handler)
+logger.addHandler(error_handler)
 
 def scrap():
     element = WebDriverWait(driver, 40).until(EC.presence_of_element_located((By.ID, "_ctl0_m_pnlRenderedDisplay")))
@@ -278,6 +311,12 @@ def run_script(postlogin,postpassword,desired_buttons):
     print("Program END")
     time.sleep(3)
 
+@app.route('/', methods=['GET'])
+def test():
+    print('Dev Server is running')
+
+    return 'Hello World'
+
 @app.route('/index',methods=['POST'])
 def index():
     if request.method == 'POST':
@@ -295,4 +334,4 @@ def index():
     
 
 if __name__ == '__main__':
-   app.run(port=5000, debug=True)
+   app.run(host='0.0.0.0', port=5000, debug=True)

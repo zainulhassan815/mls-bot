@@ -179,7 +179,7 @@ def run_script(postlogin,postpassword,desired_buttons):
     options.add_argument('--incognito')
 
     # -----------------------------Define the options for the browser-------------
-    # options.add_argument("--headless")
+    options.add_argument("--headless")
     driver = uc.Chrome(options=options)
 
     # -------------------Maximize the window ------------

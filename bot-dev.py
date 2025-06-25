@@ -155,7 +155,6 @@ def scrap():
         encoded_bytes = base64.b64encode(json_string.encode("utf-8"))
         encoded_ascii = encoded_bytes.decode("ascii")
 
-    # podio_api_url = "https://workflow-automation.podio.com/catch/3m33ct5j63yj303"
     headers = {"Content-Type": "application/json"}
 
     data = {"data": encoded_ascii}
@@ -326,9 +325,6 @@ def run_script(postlogin, postpassword, desired_buttons):
 
                 except Exception as e:
                     logger.error(f"Exception occurred: {e}", exc_info=True)
-                    # podio_api_url = (
-                    #     "https://workflow-automation.podio.com/catch/1p58355luff33i6"
-                    # )
                     headers = {"Content-Type": "application/json"}
 
                     data = {"data": "Open in portal button not found"}

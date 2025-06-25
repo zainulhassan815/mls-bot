@@ -205,13 +205,11 @@ def run_script(postlogin,postpassword,desired_buttons):
         element = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, '[aria-label="Clients"]')))
         element.click()
     except Exception as e:
-        print('im here')
         wait = WebDriverWait(driver, 20)
         element = driver.find_element(By.CSS_SELECTOR, '[aria-label="Clients"]')
         element.click()
 
     time.sleep(5)
-    print('hallo')
     # -------------------------Click on Clients Popup Menu-------------
     time.sleep(5)
     try:
@@ -220,8 +218,6 @@ def run_script(postlogin,postpassword,desired_buttons):
         element.click()
 
     except:
-        print('im here')    
-        print('im here')  
         wait = WebDriverWait(driver, 20)
         element = driver.find_element(By.CSS_SELECTOR, '[aria-label="Clients"]')
         element.click()
@@ -229,7 +225,6 @@ def run_script(postlogin,postpassword,desired_buttons):
         element = wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Auto Email (New)")))
         element.click()
         time.sleep(15)  
-    print("Hello, I am here.")
     def click_accordion_button(desired_buttons):
 
         accordion_items = driver.find_elements(By.CLASS_NAME, 'accordion-item')
@@ -287,7 +282,6 @@ def run_script(postlogin,postpassword,desired_buttons):
 def index():
     if request.method == 'POST':
         try:
-            print("Hallo World")
             agents=request.form.get('agents')
             agent_list=agents.split(' | ')
             run_script(request.form.get('login'),request.form.get('password'),agent_list)

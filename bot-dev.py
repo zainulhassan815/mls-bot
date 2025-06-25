@@ -350,9 +350,12 @@ def run_script(postlogin, postpassword, desired_buttons):
 @app.route("/index", methods=["POST"])
 def index():
     if request.method == "POST":
+        agent_list = []
         try:
             agents = request.form.get("agents")
-            agent_list = agents.split(" | ")
+            if agents:
+                agent_list = agents.split(" | ")
+
             run_script(
                 request.form.get("login"), request.form.get("password"), agent_list
             )

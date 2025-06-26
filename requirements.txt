@@ -3,3 +3,4 @@ undetected-chromedriver
 requests
 flask
 dotenv
+waitress

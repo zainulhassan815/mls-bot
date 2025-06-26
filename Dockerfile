@@ -27,4 +27,4 @@ COPY . .
 # Expose Flask default port
 EXPOSE 5000
 
-CMD ["python", "bot-dev.py"]
+CMD ["python", "bot.py"]

@@ -19,9 +19,9 @@ import os
 from logging.handlers import RotatingFileHandler
 
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
+IS_DEV_MODE = os.environ.get("ENVIRONMENT") != "PROD"
 PODIO_API_URL = os.environ.get("PODIO_API_URL")
 
 app = Flask(__name__)
@@ -70,9 +70,20 @@ stream_handler.setFormatter(info_format)
 logger.addHandler(stream_handler)
 
 
+def save_screenshot(driver, label):
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    filename = f"logs/screenshot_{label}_{timestamp}.png"
+    try:
+        os.makedirs("logs", exist_ok=True)
+        driver.save_screenshot(filename)
+        print(f"Screenshot saved: {filename}")
+    except Exception as e:
+        print(f"Failed to save screenshot: {e}")
+
+
 def scrap():
     element = WebDriverWait(driver, 40).until(
-        EC.presence_of_element_located((By.ID, "_ctl0_m_pnlRenderedDisplay"))
+        EC.visibility_of_element_located((By.ID, "_ctl0_m_pnlRenderedDisplay"))
     )
 
     logger.info("Waiting for 10 sec")
@@ -127,7 +138,7 @@ def scrap():
     logger.info(f"Property data: {property_data}")
 
     logger.info("-------- Email --------")
-    a_elements = driver.find_elements(By.XPATH, '//td[@class="d115m10"]//a')
+    a_elements = driver.find_elements(By.XPATH, '//td[@class="d115m13"]//a')
     emails = []
     for a_element in a_elements:
         href = a_element.get_attribute("href")
@@ -146,6 +157,7 @@ def scrap():
     logger.info(f"Emails: {emails}")
 
     logger.info("-------- Combined arrays --------")
+    encoded_ascii = ""
     if address_price_array and emails and property_data:
         combined_array = []
         for key, value in enumerate(address_price_array):
@@ -169,6 +181,7 @@ def scrap():
 
     except Exception as e:
         logger.error(f"Exception occurred: {e}", exc_info=True)
+        save_screenshot(driver, "exception_occurred_podio_post")
 
 
 def alert():
@@ -193,23 +206,28 @@ def remove_google_ad():
                 logger.info("Element Deleted")
     except Exception:
         logger.info("Off")
+        save_screenshot(driver, "exception_occurred_remove_google_ad")
 
 
 def run_script(postlogin, postpassword, desired_buttons):
     global driver  # Use the global variable
     options = uc.ChromeOptions()
-    options.add_argument("--incognito")
+
+    options.add_argument("--incognito" if IS_DEV_MODE else "--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--start-maximized")
 
     # -----------------------------Define the options for the browser-------------
-    options.add_argument("--headless")
     driver = uc.Chrome(options=options)
-
-    # -------------------Maximize the window ------------
-    driver.maximize_window()
+    driver.set_window_size(1920, 1080)
 
     # -----------------------------Website Url Bright MLS-------------
     url = "https://login.brightmls.com/login"
     driver.get(url)
+    save_screenshot(driver, "login_page_loaded")
 
     # -----------------------credentials----------------------------
     logger.info(f"Desired buttons: {desired_buttons}")
@@ -221,21 +239,23 @@ def run_script(postlogin, postpassword, desired_buttons):
     logger.info("1. Enter login details")
     wait = WebDriverWait(driver, 30)
     input_element = wait.until(
-        expected_conditions.presence_of_element_located((By.ID, "username"))
+        expected_conditions.visibility_of_element_located((By.ID, "username"))
     )
     input_element.clear()
     input_text = str(login)
     input_element.send_keys(input_text)
+    save_screenshot(driver, "username_entered")
 
     # -------------------------Enter password details-------------
     logger.info("2. Enter password details")
     wait = WebDriverWait(driver, 30)
     input_element = wait.until(
-        expected_conditions.presence_of_element_located((By.ID, "password"))
+        expected_conditions.visibility_of_element_located((By.ID, "password"))
     )
     input_element.clear()
     input_text = str(password)
     input_element.send_keys(input_text)
+    save_screenshot(driver, "password_entered")
 
     try:
         # -------------------------Click on Login Button -------------
@@ -249,18 +269,21 @@ def run_script(postlogin, postpassword, desired_buttons):
             )
         )
         button.click()
+        save_screenshot(driver, "after_login_click")
 
         # -------------------------Apply check after login(Dashboard open or Not) -------------
     except Exception as e:
         logger.error(f"Exception occurred: {e}", exc_info=True)
         input_element.send_keys(Keys.ENTER)
+        save_screenshot(driver, "after_login_click")
 
     wait = WebDriverWait(driver, 180)
     button = wait.until(
-        expected_conditions.presence_of_element_located(
+        expected_conditions.visibility_of_element_located(
             (By.CLASS_NAME, "app-children-container")
         )
     )
+    save_screenshot(driver, "dashboard_loaded")
 
     # -------------------------Click on Clients Popup Menu-------------
     time.sleep(10)
@@ -272,20 +295,23 @@ def run_script(postlogin, postpassword, desired_buttons):
             EC.element_to_be_clickable((By.CSS_SELECTOR, '[aria-label="Clients"]'))
         )
         element.click()
+        save_screenshot(driver, "clients_clicked")
     except Exception as e:
+        save_screenshot(driver, "exception_occurred_clients_click")
         wait = WebDriverWait(driver, 20)
         element = driver.find_element(By.CSS_SELECTOR, '[aria-label="Clients"]')
         element.click()
+        save_screenshot(driver, "clients_clicked")
 
-    time.sleep(5)
     # -------------------------Click on Clients Popup Menu-------------
-    time.sleep(5)
+    time.sleep(10)
     try:
         wait = WebDriverWait(driver, 20)
         element = wait.until(
             EC.element_to_be_clickable((By.LINK_TEXT, "Auto Email (New)"))
         )
         element.click()
+        save_screenshot(driver, "auto_email_clicked")
 
     except:
         wait = WebDriverWait(driver, 20)
@@ -296,6 +322,7 @@ def run_script(postlogin, postpassword, desired_buttons):
             EC.element_to_be_clickable((By.LINK_TEXT, "Auto Email (New)"))
         )
         element.click()
+        save_screenshot(driver, "auto_email_clicked")
         time.sleep(15)
 
     def click_accordion_button(desired_buttons):
@@ -309,6 +336,7 @@ def run_script(postlogin, postpassword, desired_buttons):
             if button_text in desired_buttons:
                 logger.info(f"Clicking the button with text: {button_text}")
                 accordion_button.click()
+                save_screenshot(driver, "accordion_button_clicked")
                 time.sleep(3)
 
                 try:
@@ -317,13 +345,18 @@ def run_script(postlogin, postpassword, desired_buttons):
                     time.sleep(7)  # Adjust the sleep duration as needed
                     # Switch to the new tab
                     driver.switch_to.window(driver.window_handles[1])
+                    save_screenshot(driver, "before_scraping")
+
                     try:
                         scrap()
                         driver.switch_to.window(driver.window_handles[0])
                     except:
                         scrap()
 
+                    save_screenshot(driver, "after_scraping")
+
                 except Exception as e:
+                    save_screenshot(driver, "exception_occurred_scraping")
                     logger.error(f"Exception occurred: {e}", exc_info=True)
                     headers = {"Content-Type": "application/json"}
 
@@ -336,7 +369,7 @@ def run_script(postlogin, postpassword, desired_buttons):
 
                         if response.status_code == 200:
                             logger.info(
-                                f"Request successful. Response content: {response.json()}"
+                                f"Request successful. Response content: {response.text}"
                             )
                         else:
                             logger.info(
@@ -365,15 +398,24 @@ def index():
                 request.form.get("login"), request.form.get("password"), agent_list
             )
         except Exception as e:
-            logger.error(f"Exception occurred: {e}", exc_info=True)
+            logger.error(
+                f"Running run_script again. Exception occurred: {e}", exc_info=True
+            )
             run_script(
                 request.form.get("login"), request.form.get("password"), agent_list
             )
         finally:
             driver.quit()
+
+        return {"status": 200, "message": "Execution Successful"}
     else:
-        return False
+        return {"status": 400, "message": "Bad Request"}
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    if IS_DEV_MODE:
+        app.run(host="0.0.0.0", port=5000, debug=True)
+    else:
+        from waitress import serve
+
+        serve(app, host="0.0.0.0", port=5000)

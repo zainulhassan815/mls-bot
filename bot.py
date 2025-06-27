@@ -12,11 +12,14 @@ import base64
 import json
 from urllib.parse import urlparse, parse_qs, unquote
 
-from flask import Flask, request
+from flask import Flask, request, g
 
-import logging
 import os
-from logging.handlers import RotatingFileHandler
+
+from screenshot import create_screenshot_dir, save_screenshot
+from log_setup import setup_logger
+
+logger = setup_logger()
 
 from dotenv import load_dotenv
 
@@ -26,59 +29,6 @@ PODIO_API_URL = os.environ.get("PODIO_API_URL")
 
 app = Flask(__name__)
 driver = None
-
-if not os.path.exists("logs"):
-    os.mkdir("logs")
-
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
-
-info_handler = RotatingFileHandler("logs/info.log", maxBytes=1000000, backupCount=3)
-info_handler.setLevel(logging.INFO)
-info_format = logging.Formatter(
-    "[%(asctime)s] %(levelname)s in %(module)s: %(message)s"
-)
-info_handler.setFormatter(info_format)
-
-error_handler = RotatingFileHandler("logs/error.log", maxBytes=1000000, backupCount=3)
-error_handler.setLevel(logging.ERROR)
-error_format = logging.Formatter(
-    "[%(asctime)s] %(levelname)s in %(module)s: %(message)s"
-)
-error_handler.setFormatter(error_format)
-
-
-class InfoFilter(logging.Filter):
-    def filter(self, record):
-        return record.levelno == logging.INFO
-
-
-class ErrorFilter(logging.Filter):
-    def filter(self, record):
-        return record.levelno >= logging.ERROR
-
-
-info_handler.addFilter(InfoFilter())
-error_handler.addFilter(ErrorFilter())
-
-logger.addHandler(info_handler)
-logger.addHandler(error_handler)
-
-stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.DEBUG)
-stream_handler.setFormatter(info_format)
-logger.addHandler(stream_handler)
-
-
-def save_screenshot(driver, label):
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    filename = f"logs/screenshot_{label}_{timestamp}.png"
-    try:
-        os.makedirs("logs", exist_ok=True)
-        driver.save_screenshot(filename)
-        print(f"Screenshot saved: {filename}")
-    except Exception as e:
-        print(f"Failed to save screenshot: {e}")
 
 
 def scrap():
@@ -383,6 +333,11 @@ def run_script(postlogin, postpassword, desired_buttons):
     click_accordion_button(desired_buttons)
     logger.info("Program END")
     time.sleep(3)
+
+
+@app.before_request
+def set_screenshot_dir():
+    g.screenshot_dir = create_screenshot_dir()
 
 
 @app.route("/index", methods=["POST"])

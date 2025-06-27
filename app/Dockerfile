@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
 ENV CHROME_BIN=/usr/bin/google-chrome
 
 # App directory
-WORKDIR /
+WORKDIR /app
 
 # Copy and install Python dependencies
 COPY requirements.txt .

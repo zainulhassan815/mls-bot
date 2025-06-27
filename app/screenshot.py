@@ -6,15 +6,17 @@ import shutil
 
 from flask import g
 
+SCREENSHOT_BASE_DIR = Path("logs/screenshots")
 
-def create_screenshot_dir():
+
+def create_screenshot_dir(base_dir=SCREENSHOT_BASE_DIR):
     """
     Creates a unique screenshot directory for the current request using date and a short UUID.
     Stores the path in Flask's g for global access during the request lifecycle.
     """
     date_str = datetime.now().strftime("%Y-%m-%d")
     unique_id = str(uuid.uuid4())[:8]
-    screenshot_dir = Path("logs/screenshots") / date_str / unique_id
+    screenshot_dir = base_dir / date_str / unique_id
     screenshot_dir.mkdir(parents=True, exist_ok=True)
     g.screenshot_dir = screenshot_dir
     return screenshot_dir
@@ -39,7 +41,7 @@ def save_screenshot(driver, label):
         print(f"Failed to save screenshot: {e}")
 
 
-def cleanup_old_screenshots(base_dir="logs/screenshots", days_to_keep=5):
+def cleanup_old_screenshots(base_dir=SCREENSHOT_BASE_DIR, days_to_keep=7):
     """
     Deletes screenshot folders older than the specified number of days.
 
@@ -47,7 +49,7 @@ def cleanup_old_screenshots(base_dir="logs/screenshots", days_to_keep=5):
         base_dir (str): Base directory where screenshot folders are stored.
         days_to_keep (int): Number of days to retain screenshots.
     """
-    cutoff_date = datetime.now() - timedelta(minutes=days_to_keep)
+    cutoff_date = datetime.now() - timedelta(days=days_to_keep)
     base_path = Path(base_dir)
 
     if not base_path.exists():

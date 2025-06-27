@@ -16,7 +16,7 @@ from flask import Flask, request, g
 
 import os
 
-from screenshot import create_screenshot_dir, save_screenshot
+from screenshot import create_screenshot_dir, save_screenshot, cleanup_old_screenshots
 from log_setup import setup_logger
 
 logger = setup_logger()
@@ -365,6 +365,11 @@ def index():
         return {"status": 200, "message": "Execution Successful"}
     else:
         return {"status": 400, "message": "Bad Request"}
+
+
+@app.teardown_request
+def cleanup(exception):
+    cleanup_old_screenshots()
 
 
 if __name__ == "__main__":

@@ -88,7 +88,10 @@ def scrap():
     logger.info(f"Property data: {property_data}")
 
     logger.info("-------- Email --------")
-    a_elements = driver.find_elements(By.XPATH, '//td[@class="d115m13"]//a')
+    a_elements = driver.find_elements(
+        By.XPATH,
+        '//td[@class="d678m12"]/span[@class="formula fieldIE field d678m21"]/a',
+    )
     emails = []
     for a_element in a_elements:
         href = a_element.get_attribute("href")

@@ -10,7 +10,6 @@ import requests
 import re
 import base64
 import json
-from urllib.parse import urlparse, parse_qs, unquote
 
 from flask import Flask, request, g
 
@@ -93,19 +92,22 @@ def scrap():
         '//td[@class="d678m12"]/span[@class="formula fieldIE field d678m21"]/a',
     )
     emails = []
+    original_window = driver.current_window_handle
     for a_element in a_elements:
-        href = a_element.get_attribute("href")
-        url_components = urlparse(href)
-        if url_components.query:
-            query_parameters = parse_qs(url_components.query)
-            if "laemail" in query_parameters:
-                email = unquote(query_parameters["laemail"][0])
-                emails.append(email)
-        if url_components.fragment:
-            fragment_parameters = parse_qs(url_components.fragment)
-            if "laemail" in fragment_parameters:
-                email = unquote(fragment_parameters["laemail"][0])
-                emails.append(email)
+        a_element.click()
+        driver.switch_to.window(driver.window_handles[-1])
+        wait = WebDriverWait(driver, 10)
+
+        try:
+            email_link = wait.until(
+                EC.visibility_of_element_located((By.CSS_SELECTOR, 'a[title="Email"]'))
+            )
+            emails.append(email_link.text)
+        except Exception as e:
+            logger.error(f"Email not found. Exception: {e}")
+
+        driver.close()
+        driver.switch_to.window(original_window)
 
     logger.info(f"Emails: {emails}")
 

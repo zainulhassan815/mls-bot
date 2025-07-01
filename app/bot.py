@@ -26,10 +26,10 @@ load_dotenv()
 IS_DEV_MODE = os.environ.get("ENVIRONMENT") != "PROD"
 
 app = Flask(__name__)
-driver = None
+# driver = None
 
 
-def scrap(podio_url):
+def scrap(driver, podio_url):
     element = WebDriverWait(driver, 40).until(
         EC.visibility_of_element_located((By.ID, "_ctl0_m_pnlRenderedDisplay"))
     )
@@ -103,6 +103,7 @@ def scrap(podio_url):
             )
             emails.append(email_link.text)
         except Exception as e:
+            emails.append("")
             logger.error(f"Email not found. Exception: {e}")
 
         driver.close()
@@ -138,17 +139,7 @@ def scrap(podio_url):
         save_screenshot(driver, "exception_occurred_podio_post")
 
 
-def alert():
-    try:
-        alert = driver.switch_to.alert
-        alert.save()
-        logger.info("Password save dialogue dismissed.")
-    except:
-        # If no alert is present, continue with other actions
-        logger.info("No password save dialogue found.")
-
-
-def remove_google_ad():
+def remove_google_ad(driver):
     try:
         if driver.find_elements(By.ID, "modal-container"):
             deleteableelements = driver.find_elements(By.ID, "modal-container")
@@ -163,21 +154,7 @@ def remove_google_ad():
         save_screenshot(driver, "exception_occurred_remove_google_ad")
 
 
-def run_script(postlogin, postpassword, desired_buttons, podio_url):
-    global driver  # Use the global variable
-    options = uc.ChromeOptions()
-
-    options.add_argument("--incognito" if IS_DEV_MODE else "--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--start-maximized")
-
-    # -----------------------------Define the options for the browser-------------
-    driver = uc.Chrome(options=options)
-    driver.set_window_size(1920, 1080)
-
+def run_script(driver, login, password, desired_buttons, podio_url):
     # -----------------------------Website Url Bright MLS-------------
     url = "https://login.brightmls.com/login"
     driver.get(url)
@@ -185,9 +162,7 @@ def run_script(postlogin, postpassword, desired_buttons, podio_url):
 
     # -----------------------credentials----------------------------
     logger.info(f"Desired buttons: {desired_buttons}")
-    login = postlogin
-    password = postpassword
-    logger.info(f"login: {postlogin}, password: {postpassword}")
+    logger.info(f"login: {login}, password: {password}")
 
     # -------------------------Enter Login details-------------
     logger.info("1. Enter login details")
@@ -241,7 +216,7 @@ def run_script(postlogin, postpassword, desired_buttons, podio_url):
 
     # -------------------------Click on Clients Popup Menu-------------
     time.sleep(10)
-    remove_google_ad()
+    remove_google_ad(driver)
 
     try:
         wait = WebDriverWait(driver, 65)
@@ -302,10 +277,10 @@ def run_script(postlogin, postpassword, desired_buttons, podio_url):
                     save_screenshot(driver, "before_scraping")
 
                     try:
-                        scrap()
+                        scrap(driver, podio_url)
                         driver.switch_to.window(driver.window_handles[0])
                     except:
-                        scrap()
+                        scrap(driver, podio_url)
 
                     save_screenshot(driver, "after_scraping")
 
@@ -337,6 +312,23 @@ def run_script(postlogin, postpassword, desired_buttons, podio_url):
     time.sleep(3)
 
 
+def create_driver():
+    options = uc.ChromeOptions()
+
+    options.add_argument("--incognito" if IS_DEV_MODE else "--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--start-maximized")
+
+    driver = uc.Chrome(options=options)
+    driver.set_window_size(1920, 1080)
+    driver.maximize_window()
+
+    return driver
+
+
 @app.before_request
 def set_screenshot_dir():
     g.screenshot_dir = create_screenshot_dir()
@@ -351,13 +343,18 @@ def index():
         agents = request.form.get("agents")
         agent_list = agents.split(" | ") if agents else []
 
+        if not login or not password or not podio_url or not agent_list:
+            return {"status": 400, "message": "Bad Request"}
+
+        driver = create_driver()
+
         try:
-            run_script(login, password, agent_list, podio_url)
+            run_script(driver, login, password, agent_list, podio_url)
         except Exception as e:
             logger.error(
                 f"Running run_script again. Exception occurred: {e}", exc_info=True
             )
-            run_script(login, password, agent_list, podio_url)
+            run_script(driver, login, password, agent_list, podio_url)
         finally:
             driver.quit()
 

@@ -24,13 +24,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 IS_DEV_MODE = os.environ.get("ENVIRONMENT") != "PROD"
-PODIO_API_URL = os.environ.get("PODIO_API_URL")
 
 app = Flask(__name__)
 driver = None
 
 
-def scrap():
+def scrap(podio_url):
     element = WebDriverWait(driver, 40).until(
         EC.visibility_of_element_located((By.ID, "_ctl0_m_pnlRenderedDisplay"))
     )
@@ -126,7 +125,7 @@ def scrap():
 
     data = {"data": encoded_ascii}
     try:
-        response = requests.post(PODIO_API_URL, json=data, headers=headers)
+        response = requests.post(podio_url, json=data, headers=headers)
 
         if response.status_code == 200:
             logger.info(f"Request successful. Response content: {response.json()}")
@@ -164,7 +163,7 @@ def remove_google_ad():
         save_screenshot(driver, "exception_occurred_remove_google_ad")
 
 
-def run_script(postlogin, postpassword, desired_buttons):
+def run_script(postlogin, postpassword, desired_buttons, podio_url):
     global driver  # Use the global variable
     options = uc.ChromeOptions()
 
@@ -318,9 +317,7 @@ def run_script(postlogin, postpassword, desired_buttons):
                     data = {"data": "Open in portal button not found"}
                     driver.quit()
                     try:
-                        response = requests.post(
-                            PODIO_API_URL, json=data, headers=headers
-                        )
+                        response = requests.post(podio_url, json=data, headers=headers)
 
                         if response.status_code == 200:
                             logger.info(
@@ -348,22 +345,19 @@ def set_screenshot_dir():
 @app.route("/index", methods=["POST"])
 def index():
     if request.method == "POST":
-        agent_list = []
-        try:
-            agents = request.form.get("agents")
-            if agents:
-                agent_list = agents.split(" | ")
+        login = request.form.get("login")
+        password = request.form.get("password")
+        podio_url = request.form.get("podio_url")
+        agents = request.form.get("agents")
+        agent_list = agents.split(" | ") if agents else []
 
-            run_script(
-                request.form.get("login"), request.form.get("password"), agent_list
-            )
+        try:
+            run_script(login, password, agent_list, podio_url)
         except Exception as e:
             logger.error(
                 f"Running run_script again. Exception occurred: {e}", exc_info=True
             )
-            run_script(
-                request.form.get("login"), request.form.get("password"), agent_list
-            )
+            run_script(login, password, agent_list, podio_url)
         finally:
             driver.quit()
 

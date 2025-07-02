@@ -1,15 +1,16 @@
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support import expected_conditions
-from selenium.webdriver.common.keys import Keys
 import undetected_chromedriver as uc
+from selenium.webdriver.chrome.webdriver import WebDriver
 
 import time
 import requests
 import re
 import base64
 import json
+
+from typing import Callable
 
 from flask import Flask, request, g
 
@@ -26,10 +27,9 @@ load_dotenv()
 IS_DEV_MODE = os.environ.get("ENVIRONMENT") != "PROD"
 
 app = Flask(__name__)
-# driver = None
 
 
-def scrap(driver, podio_url):
+def scrap(driver: WebDriver) -> str:
     element = WebDriverWait(driver, 40).until(
         EC.visibility_of_element_located((By.ID, "_ctl0_m_pnlRenderedDisplay"))
     )
@@ -102,11 +102,12 @@ def scrap(driver, podio_url):
                 EC.visibility_of_element_located((By.CSS_SELECTOR, 'a[title="Email"]'))
             )
             emails.append(email_link.text)
+            driver.close()
+
         except Exception as e:
             emails.append("")
-            logger.error(f"Email not found. Exception: {e}")
+            logger.error(f"Email not found. Exception: {e}", exc_info=True)
 
-        driver.close()
         driver.switch_to.window(original_window)
 
     logger.info(f"Emails: {emails}")
@@ -122,24 +123,10 @@ def scrap(driver, podio_url):
         encoded_bytes = base64.b64encode(json_string.encode("utf-8"))
         encoded_ascii = encoded_bytes.decode("ascii")
 
-    headers = {"Content-Type": "application/json"}
-
-    data = {"data": encoded_ascii}
-    try:
-        response = requests.post(podio_url, json=data, headers=headers)
-
-        if response.status_code == 200:
-            logger.info(f"Request successful. Response content: {response.json()}")
-        else:
-            logger.info(f"Request failed with status code: {response.status_code}")
-            logger.info(f"Response content: {response.text}")
-
-    except Exception as e:
-        logger.error(f"Exception occurred: {e}", exc_info=True)
-        save_screenshot(driver, "exception_occurred_podio_post")
+    return encoded_ascii
 
 
-def remove_google_ad(driver):
+def remove_google_ad(driver: WebDriver):
     try:
         if driver.find_elements(By.ID, "modal-container"):
             deleteableelements = driver.find_elements(By.ID, "modal-container")
@@ -150,20 +137,20 @@ def remove_google_ad(driver):
                 )
                 logger.info("Element Deleted")
     except Exception:
-        logger.info("Off")
         save_screenshot(driver, "exception_occurred_remove_google_ad")
 
 
-def login_to_bright_mls(driver, login, password):
+def login_to_bright_mls(driver: WebDriver, login: str, password: str):
     """Login to Bright MLS website using provided credentials."""
 
     url = "https://login.brightmls.com/login"
     driver.get(url)
-    save_screenshot(driver, "login_page_loaded")
 
     # Wait until the form is loaded
+    logger.info("Waiting for login page to load")
     wait = WebDriverWait(driver, 30)
     wait.until(EC.visibility_of_element_located((By.TAG_NAME, "form")))
+    save_screenshot(driver, "login_page_loaded")
 
     # Fill in form data
     logger.info("Enter login credentials")
@@ -176,40 +163,37 @@ def login_to_bright_mls(driver, login, password):
     password_field.clear()
     password_field.send_keys(password)
 
+    time.sleep(5)
+
     # Submit form data
     submit_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
     submit_button.click()
+    logger.info("Login button clicked")
     save_screenshot(driver, "after_login_click")
 
 
-def run_script(driver, login, password, desired_buttons, podio_url):
-    login_to_bright_mls(driver, login, password)
+def open_auto_email_page(driver: WebDriver):
+    """Open the Auto Email (New) page."""
 
     # Wait for dashboard to load
+    logger.info("Waiting for dashboard to load")
     wait = WebDriverWait(driver, 180)
-    wait.until(EC.visibility_of_element_located((By.ID, "app-children-containerId")))
+    wait.until(
+        EC.all_of(
+            EC.url_to_be("https://www.brightmls.com/dashboard"),
+            EC.visibility_of_element_located((By.ID, "app-children-containerId")),
+        )
+    )
     save_screenshot(driver, "dashboard_loaded")
     logger.info("Dashboard loaded")
+    logger.info("Waiting for 30 sec")
+    time.sleep(30)
 
     # Remove google ad
-    time.sleep(10)
     remove_google_ad(driver)
 
-    # Click on Clients Popup Menu
-    # try:
-    #     wait = WebDriverWait(driver, 60)
-    #     element = wait.until(
-    #         EC.element_to_be_clickable((By.CSS_SELECTOR, '[aria-label="Clients"]'))
-    #     )
-    #     element.click()
-    #     save_screenshot(driver, "clients_clicked")
-    # except Exception as e:
-    #     save_screenshot(driver, "exception_occurred_clients_click")
-    #     wait = WebDriverWait(driver, 20)
-    #     element = driver.find_element(By.CSS_SELECTOR, '[aria-label="Clients"]')
-    #     element.click()
-    #     save_screenshot(driver, "clients_clicked")
-
+    # Click Clients Popup Menu
+    logger.info("Clicking Clients Popup Menu")
     wait = WebDriverWait(driver, 60)
     clients_nav_link = wait.until(
         EC.element_to_be_clickable((By.CSS_SELECTOR, 'li[aria-label="Clients"]'))
@@ -218,88 +202,102 @@ def run_script(driver, login, password, desired_buttons, podio_url):
     save_screenshot(driver, "clients_nav_link_clicked")
     time.sleep(10)
 
+    # Click Auto Email (New) Link
+    logger.info("Clicking Auto Email (New) Link")
     auto_email_button = driver.find_element(By.LINK_TEXT, "Auto Email (New)")
     auto_email_button.click()
     save_screenshot(driver, "auto_email_button_clicked")
     time.sleep(15)
 
-    # -------------------------Click on Clients Popup Menu-------------
-    # try:
-    #     wait = WebDriverWait(driver, 20)
-    #     element = wait.until(
-    #         EC.element_to_be_clickable((By.LINK_TEXT, "Auto Email (New)"))
-    #     )
-    #     element.click()
-    #     save_screenshot(driver, "auto_email_clicked")
 
-    # except:
-    #     wait = WebDriverWait(driver, 20)
-    #     element = driver.find_element(By.CSS_SELECTOR, '[aria-label="Clients"]')
-    #     element.click()
-    #     wait = WebDriverWait(driver, 20)
-    #     element = wait.until(
-    #         EC.element_to_be_clickable((By.LINK_TEXT, "Auto Email (New)"))
-    #     )
-    #     element.click()
-    #     save_screenshot(driver, "auto_email_clicked")
-    #     time.sleep(15)
+def run_script(
+    driver: WebDriver,
+    login: str,
+    password: str,
+    desired_buttons: list[str],
+    podio_url: str,
+):
+    login_to_bright_mls(driver, login, password)
+    open_auto_email_page(driver)
 
-    def click_accordion_button(desired_buttons):
-
-        accordion_items = driver.find_elements(By.CLASS_NAME, "accordion-item")
-
-        for item in accordion_items:
-            accordion_button = item.find_element(By.CLASS_NAME, "accordion-button")
-            button_text = accordion_button.text.strip()
-
-            if button_text in desired_buttons:
-                logger.info(f"Clicking the button with text: {button_text}")
-                accordion_button.click()
-                save_screenshot(driver, "accordion_button_clicked")
-                time.sleep(3)
-
-                try:
-                    open_in_portal_button = item.find_elements(By.TAG_NAME, "a")
-                    open_in_portal_button[5].click()
-                    time.sleep(7)  # Adjust the sleep duration as needed
-                    # Switch to the new tab
-                    driver.switch_to.window(driver.window_handles[1])
-                    save_screenshot(driver, "before_scraping")
-
-                    try:
-                        scrap(driver, podio_url)
-                        driver.switch_to.window(driver.window_handles[0])
-                    except:
-                        scrap(driver, podio_url)
-
-                    save_screenshot(driver, "after_scraping")
-
-                except Exception as e:
-                    save_screenshot(driver, "exception_occurred_scraping")
-                    logger.error(f"Exception occurred: {e}", exc_info=True)
-                    headers = {"Content-Type": "application/json"}
-
-                    data = {"data": "Open in portal button not found"}
-                    driver.quit()
-                    try:
-                        response = requests.post(podio_url, json=data, headers=headers)
-
-                        if response.status_code == 200:
-                            logger.info(
-                                f"Request successful. Response content: {response.text}"
-                            )
-                        else:
-                            logger.info(
-                                f"Request failed with status code: {response.status_code}"
-                            )
-                            logger.info("Response content:", response)
-
-                    except Exception as e:
-                        logger.error(f"Exception occurred: {e}", exc_info=True)
-
-    click_accordion_button(desired_buttons)
+    click_accordion_button(
+        driver,
+        desired_buttons,
+        on_data_scraped=lambda data: post_data_to_podio_webhook(podio_url, data),
+        on_scrap_failure=lambda: post_data_to_podio_webhook(
+            podio_url, "Failed to scrap data"
+        ),
+    )
     logger.info("Program END")
-    time.sleep(3)
+
+
+def click_accordion_button(
+    driver: WebDriver,
+    buttons: list[str],
+    on_data_scraped: Callable[[str], None],
+    on_scrap_failure: Callable[[], None],
+):
+    """Open listing page for scraping data."""
+
+    accordion_items = driver.find_elements(By.CLASS_NAME, "accordion-item")
+
+    for item in accordion_items:
+        accordion_button = item.find_element(By.CLASS_NAME, "accordion-button")
+        button_text = accordion_button.text.strip()
+
+        if button_text in buttons:
+            logger.info(f"Clicking {button_text} accordion button")
+            accordion_button.click()
+            save_screenshot(driver, "accordion_button_clicked")
+            time.sleep(5)
+
+            logger.info("Clicking Open in Portal button")
+            open_in_portal_button = item.find_element(
+                By.PARTIAL_LINK_TEXT, "Open in Portal"
+            )
+            open_in_portal_button.click()
+            time.sleep(10)
+
+            driver.switch_to.window(driver.window_handles[-1])
+            save_screenshot(driver, "before_scraping")
+
+            try:
+                logger.info("Scraping data")
+                data = scrap(driver)
+                logger.info(f"Scraped data: {data}")
+                on_data_scraped(data)
+
+            except Exception as e:
+                save_screenshot(driver, "exception_occurred_scraping")
+                logger.error(
+                    f"Failed to scrap data. Exception occurred: {e}", exc_info=True
+                )
+                on_scrap_failure()
+
+            save_screenshot(driver, "after_scraping")
+
+
+def post_data_to_podio_webhook(podio_url: str, data: str):
+    """Post scraped data to podio webhook."""
+
+    try:
+        response = requests.post(
+            podio_url, json={"data": data}, headers={"Content-Type": "application/json"}
+        )
+
+        if response.status_code == 200:
+            logger.info(
+                f"Post to webhook request successful. Response content: {response.json()}"
+            )
+        else:
+            logger.info(
+                f"Post to webhook request failed with status code: {response.status_code}"
+            )
+
+    except Exception as e:
+        logger.error(
+            f"Failed to post data to webhook. Exception occurred: {e}", exc_info=True
+        )
 
 
 def create_driver():

@@ -7,3 +7,5 @@ services:
       - "5000:5000"
     volumes:
       - ./logs:/app/logs
+    environment:
+      - ENVIRONMENT=PROD

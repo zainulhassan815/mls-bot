@@ -245,6 +245,8 @@ def click_accordion_button(
         accordion_button = item.find_element(By.CLASS_NAME, "accordion-button")
         button_text = accordion_button.text.strip()
 
+        original_window = driver.current_window_handle
+
         if button_text in buttons:
             logger.info(f"Clicking {button_text} accordion button")
             accordion_button.click()
@@ -275,6 +277,11 @@ def click_accordion_button(
                 on_scrap_failure()
 
             save_screenshot(driver, "after_scraping")
+
+            if len(driver.window_handles) > 1:
+                driver.close()
+
+            driver.switch_to.window(original_window)
 
 
 def post_data_to_podio_webhook(podio_url: str, data: str):

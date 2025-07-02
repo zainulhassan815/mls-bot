@@ -154,105 +154,95 @@ def remove_google_ad(driver):
         save_screenshot(driver, "exception_occurred_remove_google_ad")
 
 
-def run_script(driver, login, password, desired_buttons, podio_url):
-    # -----------------------------Website Url Bright MLS-------------
+def login_to_bright_mls(driver, login, password):
+    """Login to Bright MLS website using provided credentials."""
+
     url = "https://login.brightmls.com/login"
     driver.get(url)
     save_screenshot(driver, "login_page_loaded")
 
-    # -----------------------credentials----------------------------
-    logger.info(f"Desired buttons: {desired_buttons}")
-    logger.info(f"login: {login}, password: {password}")
-
-    # -------------------------Enter Login details-------------
-    logger.info("1. Enter login details")
+    # Wait until the form is loaded
     wait = WebDriverWait(driver, 30)
-    input_element = wait.until(
-        expected_conditions.visibility_of_element_located((By.ID, "username"))
-    )
-    input_element.clear()
-    input_text = str(login)
-    input_element.send_keys(input_text)
-    save_screenshot(driver, "username_entered")
+    wait.until(EC.visibility_of_element_located((By.TAG_NAME, "form")))
 
-    # -------------------------Enter password details-------------
-    logger.info("2. Enter password details")
-    wait = WebDriverWait(driver, 30)
-    input_element = wait.until(
-        expected_conditions.visibility_of_element_located((By.ID, "password"))
-    )
-    input_element.clear()
-    input_text = str(password)
-    input_element.send_keys(input_text)
-    save_screenshot(driver, "password_entered")
+    # Fill in form data
+    logger.info("Enter login credentials")
 
-    try:
-        # -------------------------Click on Login Button -------------
-        wait = WebDriverWait(driver, 5)
-        button = wait.until(
-            EC.element_to_be_clickable(
-                (
-                    By.CSS_SELECTOR,
-                    ".MuiButtonBase-root.MuiButton-root.jss44.MuiButton-contained.MuiButton-containedPrimary",
-                )
-            )
-        )
-        button.click()
-        save_screenshot(driver, "after_login_click")
+    login_field = driver.find_element(By.ID, "username")
+    login_field.clear()
+    login_field.send_keys(login)
 
-        # -------------------------Apply check after login(Dashboard open or Not) -------------
-    except Exception as e:
-        logger.error(f"Exception occurred: {e}", exc_info=True)
-        input_element.send_keys(Keys.ENTER)
-        save_screenshot(driver, "after_login_click")
+    password_field = driver.find_element(By.ID, "password")
+    password_field.clear()
+    password_field.send_keys(password)
 
+    # Submit form data
+    submit_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
+    submit_button.click()
+    save_screenshot(driver, "after_login_click")
+
+
+def run_script(driver, login, password, desired_buttons, podio_url):
+    login_to_bright_mls(driver, login, password)
+
+    # Wait for dashboard to load
     wait = WebDriverWait(driver, 180)
-    button = wait.until(
-        expected_conditions.visibility_of_element_located(
-            (By.CLASS_NAME, "app-children-container")
-        )
-    )
+    wait.until(EC.visibility_of_element_located((By.ID, "app-children-containerId")))
     save_screenshot(driver, "dashboard_loaded")
+    logger.info("Dashboard loaded")
 
-    # -------------------------Click on Clients Popup Menu-------------
+    # Remove google ad
     time.sleep(10)
     remove_google_ad(driver)
 
-    try:
-        wait = WebDriverWait(driver, 65)
-        element = wait.until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, '[aria-label="Clients"]'))
-        )
-        element.click()
-        save_screenshot(driver, "clients_clicked")
-    except Exception as e:
-        save_screenshot(driver, "exception_occurred_clients_click")
-        wait = WebDriverWait(driver, 20)
-        element = driver.find_element(By.CSS_SELECTOR, '[aria-label="Clients"]')
-        element.click()
-        save_screenshot(driver, "clients_clicked")
+    # Click on Clients Popup Menu
+    # try:
+    #     wait = WebDriverWait(driver, 60)
+    #     element = wait.until(
+    #         EC.element_to_be_clickable((By.CSS_SELECTOR, '[aria-label="Clients"]'))
+    #     )
+    #     element.click()
+    #     save_screenshot(driver, "clients_clicked")
+    # except Exception as e:
+    #     save_screenshot(driver, "exception_occurred_clients_click")
+    #     wait = WebDriverWait(driver, 20)
+    #     element = driver.find_element(By.CSS_SELECTOR, '[aria-label="Clients"]')
+    #     element.click()
+    #     save_screenshot(driver, "clients_clicked")
+
+    wait = WebDriverWait(driver, 60)
+    clients_nav_link = wait.until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, 'li[aria-label="Clients"]'))
+    )
+    clients_nav_link.click()
+    save_screenshot(driver, "clients_nav_link_clicked")
+    time.sleep(10)
+
+    auto_email_button = driver.find_element(By.LINK_TEXT, "Auto Email (New)")
+    auto_email_button.click()
+    save_screenshot(driver, "auto_email_button_clicked")
+    time.sleep(15)
 
     # -------------------------Click on Clients Popup Menu-------------
-    time.sleep(10)
-    try:
-        wait = WebDriverWait(driver, 20)
-        element = wait.until(
-            EC.element_to_be_clickable((By.LINK_TEXT, "Auto Email (New)"))
-        )
-        element.click()
-        save_screenshot(driver, "auto_email_clicked")
+    # try:
+    #     wait = WebDriverWait(driver, 20)
+    #     element = wait.until(
+    #         EC.element_to_be_clickable((By.LINK_TEXT, "Auto Email (New)"))
+    #     )
+    #     element.click()
+    #     save_screenshot(driver, "auto_email_clicked")
 
-    except:
-        wait = WebDriverWait(driver, 20)
-        element = driver.find_element(By.CSS_SELECTOR, '[aria-label="Clients"]')
-        element.click()
-        wait = WebDriverWait(driver, 20)
-        element = wait.until(
-            EC.element_to_be_clickable((By.LINK_TEXT, "Auto Email (New)"))
-        )
-        element.click()
-        save_screenshot(driver, "auto_email_clicked")
-        time.sleep(15)
+    # except:
+    #     wait = WebDriverWait(driver, 20)
+    #     element = driver.find_element(By.CSS_SELECTOR, '[aria-label="Clients"]')
+    #     element.click()
+    #     wait = WebDriverWait(driver, 20)
+    #     element = wait.until(
+    #         EC.element_to_be_clickable((By.LINK_TEXT, "Auto Email (New)"))
+    #     )
+    #     element.click()
+    #     save_screenshot(driver, "auto_email_clicked")
+    #     time.sleep(15)
 
     def click_accordion_button(desired_buttons):
 

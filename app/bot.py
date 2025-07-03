@@ -323,7 +323,6 @@ def create_driver():
 
     driver = uc.Chrome(options=options)
     driver.set_window_size(1920, 1080)
-    driver.maximize_window()
 
     return driver
 

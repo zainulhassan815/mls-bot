@@ -1,8 +1,9 @@
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import undetected_chromedriver as uc
 from selenium.webdriver.chrome.webdriver import WebDriver
+from selenium.common.exceptions import TimeoutException
+import undetected_chromedriver as uc
 
 import time
 import requests
@@ -30,99 +31,102 @@ app = Flask(__name__)
 
 
 def scrap(driver: WebDriver) -> str:
-    element = WebDriverWait(driver, 40).until(
+    """Scrap data from listing page."""
+
+    logger.info("Waiting for listings to load")
+    WebDriverWait(driver, 40).until(
         EC.visibility_of_element_located((By.ID, "_ctl0_m_pnlRenderedDisplay"))
     )
-
-    logger.info("Waiting for 10 sec")
+    logger.info("Listings loaded. Waiting for 10 sec")
     time.sleep(10)
 
-    logger.info("-------- Addresses and Prices --------")
-    tr_nodes = driver.find_elements(By.XPATH, '//tr[contains(@class, "d693m10")]')
-    address_price_array = []
-    for tr_node in tr_nodes:
-
-        first_td = tr_node.find_elements(By.XPATH, ".//td[1]")[0]
-        last_td = tr_node.find_elements(By.XPATH, ".//td[last()]")[0]
-        address = first_td.text.strip()
-        price = last_td.text.strip()
-        address_price_array.append(
-            {
-                "address": address,
-                "price": price,
-            }
-        )
-
-    logger.info(f"Address and price data: {address_price_array}")
-
-    logger.info("-------- MLS, Beds, TaxAmount, ListAgents, DOM/CDOM --------")
-    elements = driver.find_elements(
-        By.XPATH, "//*[contains(concat(' ', normalize-space(@class), ' '), ' d678m0 ')]"
-    )
-    property_data = []
-
-    for element in elements:
-        node_value = element.text
-        mls_matches = re.search(r"MLS #:\s*(\S+)", node_value)
-        beds_matches = re.search(r"Beds:\s*(\d+)", node_value)
-        baths_matches = re.search(r"Baths:\s*((\d+(\s*\/\s*\d+)?)|\d+)", node_value)
-        list_agent_matches = re.search(r"List Agent:\s*(.*)", node_value)
-        dom_cdom_matches = re.search(r"DOM\/CDOM:\s*(\d+\s*\/\s*\d+)", node_value)
-        tax_position = node_value.find("Tax Annual Amt")
-        tax_info = node_value[tax_position + len("Tax Annual Amt") :].strip()
-        tax_values = re.search(r"\$\s*([\d,]+)\s*\/\s*(\d+)", tax_info)
-        property_info = {
-            "MLS": mls_matches.group(1) if mls_matches else "",
-            "Beds": beds_matches.group(1) if beds_matches else "",
-            "Baths": baths_matches.group(1) if baths_matches else "",
-            "List Agent": list_agent_matches.group(1) if list_agent_matches else "",
-            "DOM/CDOM": dom_cdom_matches.group(1) if dom_cdom_matches else "",
-            "Tax Annual Amt / Year": (
-                f"${tax_values.group(1)} / {tax_values.group(2)}" if tax_values else ""
-            ),
-        }
-        property_data.append(property_info)
-
-    logger.info(f"Property data: {property_data}")
-
-    logger.info("-------- Email --------")
-    a_elements = driver.find_elements(
-        By.XPATH,
-        '//td[@class="d678m12"]/span[@class="formula fieldIE field d678m21"]/a',
-    )
-    emails = []
     original_window = driver.current_window_handle
-    for a_element in a_elements:
-        a_element.click()
-        driver.switch_to.window(driver.window_handles[-1])
-        wait = WebDriverWait(driver, 10)
+
+    # Find all listing tables
+    data = []
+    tables = driver.find_elements(
+        By.XPATH, '//td[@class="d693m1"]/table[@class="d693m2"]'
+    )
+    for table in tables:
+        table.location_once_scrolled_into_view
+        listing_item = {}
 
         try:
-            email_link = wait.until(
-                EC.visibility_of_element_located((By.CSS_SELECTOR, 'a[title="Email"]'))
+            # Address and price data
+            address_and_price_row = table.find_element(By.CSS_SELECTOR, "tr.d693m10")
+            listing_item["address"] = address_and_price_row.find_element(
+                By.CSS_SELECTOR, "td:first-child"
+            ).text.strip()
+            listing_item["price"] = address_and_price_row.find_element(
+                By.CSS_SELECTOR, "td:last-child"
+            ).text.strip()
+
+            # Property data
+            property_table = table.find_element(By.CSS_SELECTOR, "table.d678m0")
+            property_content = property_table.text
+
+            mls_matches = re.search(r"MLS #:\s*(\S+)", property_content)
+            beds_matches = re.search(r"Beds:\s*(\d+)", property_content)
+            baths_matches = re.search(
+                r"Baths:\s*((\d+(\s*\/\s*\d+)?)|\d+)", property_content
             )
-            emails.append(email_link.text)
-            driver.close()
+            list_agent_matches = re.search(r"List Agent:\s*(.*)", property_content)
+            dom_cdom_matches = re.search(
+                r"DOM\/CDOM:\s*(\d+\s*\/\s*\d+)", property_content
+            )
+            tax_position = property_content.find("Tax Annual Amt")
+            tax_info = property_content[tax_position + len("Tax Annual Amt") :].strip()
+            tax_values = re.search(r"\$\s*([\d,]+)\s*\/\s*(\d+)", tax_info)
+
+            listing_item["MLS"] = mls_matches.group(1) if mls_matches else ""
+            listing_item["Beds"] = (beds_matches.group(1) if beds_matches else "",)
+            listing_item["Baths"] = (baths_matches.group(1) if baths_matches else "",)
+            listing_item["List Agent"] = (
+                list_agent_matches.group(1) if list_agent_matches else "",
+            )
+            listing_item["DOM/CDOM"] = (
+                dom_cdom_matches.group(1) if dom_cdom_matches else "",
+            )
+            listing_item["Tax Annual Amt / Year"] = (
+                f"${tax_values.group(1)} / {tax_values.group(2)}" if tax_values else ""
+            )
+
+            # Agent Email
+            email_link = table.find_element(
+                By.CSS_SELECTOR,
+                "td.d678m12 span.formula.fieldIE.field.d678m21 a",
+            )
+            email_link.click()
+            driver.switch_to.window(driver.window_handles[-1])
+            wait = WebDriverWait(driver, 10)
+
+            try:
+                email_link = wait.until(
+                    EC.visibility_of_element_located(
+                        (By.CSS_SELECTOR, 'a[title="Email"]')
+                    ),
+                    message=f"Email not found for list agent: {listing_item['List Agent']}",
+                )
+                listing_item["email"] = email_link.text.strip()
+                driver.close()
+
+            except TimeoutException as e:
+                logger.error(e)
+
+            driver.switch_to.window(original_window)
+
+            logger.info(f"Listing item: {listing_item}")
+            data.append(listing_item)
 
         except Exception as e:
-            emails.append("")
-            logger.error(f"Email not found. Exception: {e}", exc_info=True)
+            logger.info("Failed to scrap listing item")
+        finally:
+            time.sleep(2)
 
-        driver.switch_to.window(original_window)
-
-    logger.info(f"Emails: {emails}")
-
-    logger.info("-------- Combined arrays --------")
-    encoded_ascii = ""
-    if address_price_array and emails and property_data:
-        combined_array = []
-        for key, value in enumerate(address_price_array):
-            combined_array.append({**value, **property_data[key], "email": emails[key]})
-        logger.info(f"Combined arrays data: {combined_array}")
-        json_string = json.dumps(combined_array, ensure_ascii=False)
-        encoded_bytes = base64.b64encode(json_string.encode("utf-8"))
-        encoded_ascii = encoded_bytes.decode("ascii")
-
+    json_string = json.dumps(data, ensure_ascii=False)
+    logger.info(f"Data: {json_string}")
+    encoded_bytes = base64.b64encode(json_string.encode("utf-8"))
+    encoded_ascii = encoded_bytes.decode("ascii")
     return encoded_ascii
 
 
@@ -210,27 +214,6 @@ def open_auto_email_page(driver: WebDriver):
     time.sleep(15)
 
 
-def run_script(
-    driver: WebDriver,
-    login: str,
-    password: str,
-    desired_buttons: list[str],
-    podio_url: str,
-):
-    login_to_bright_mls(driver, login, password)
-    open_auto_email_page(driver)
-
-    click_accordion_button(
-        driver,
-        desired_buttons,
-        on_data_scraped=lambda data: post_data_to_podio_webhook(podio_url, data),
-        on_scrap_failure=lambda: post_data_to_podio_webhook(
-            podio_url, "Failed to scrap data"
-        ),
-    )
-    logger.info("Program END")
-
-
 def click_accordion_button(
     driver: WebDriver,
     buttons: list[str],
@@ -305,6 +288,27 @@ def post_data_to_podio_webhook(podio_url: str, data: str):
         logger.error(
             f"Failed to post data to webhook. Exception occurred: {e}", exc_info=True
         )
+
+
+def run_script(
+    driver: WebDriver,
+    login: str,
+    password: str,
+    desired_buttons: list[str],
+    podio_url: str,
+):
+    login_to_bright_mls(driver, login, password)
+    open_auto_email_page(driver)
+
+    click_accordion_button(
+        driver,
+        desired_buttons,
+        on_data_scraped=lambda data: post_data_to_podio_webhook(podio_url, data),
+        on_scrap_failure=lambda: post_data_to_podio_webhook(
+            podio_url, "Failed to scrap data"
+        ),
+    )
+    logger.info("Program END")
 
 
 def create_driver():
